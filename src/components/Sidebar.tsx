@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Bars3Icon } from '@heroicons/react/24/solid';
 import { Title } from './SidebarContent';
-import { CSSTransition } from 'react-transition-group';
 
 export const Sidebar: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -11,36 +10,21 @@ export const Sidebar: React.FC<{ children: React.ReactNode }> = ({
   const handleSidebarToggle = () => {
     setShowSidebar(!showSidebar);
   };
-
-  const closeSidebar = () => {
-    setShowSidebar(false);
-  };
-
+  
   return (
     <>
-      {showSidebar && (
-        <div
-          className="fixed inset-0 bg-gray-500 opacity-50 z-10 lg:hidden"
-          onClick={closeSidebar}
-        ></div>
-      )}
       <div className="lg:hidden border-y px-4 sm:px-6 md:px-8 flex justify-between">
         <Title />
         <SidebarToggle onToggle={handleSidebarToggle} />
       </div>
-      <CSSTransition
-        in={showSidebar}
-        timeout={300}
-        classNames="sidebar"
-        unmountOnExit
+      <div
+        id="application-sidebar"
+        className={`fixed ${
+          showSidebar ? '' : 'hidden lg:block w-0 lg:w-64'
+        } top-0 start-0 bottom-0 lg:z-0 z-[20] w-64 bg-ec-blue-900 text-white border-e border-gray-200 pt-7 pb-10 overflow-y-auto end-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 lg:block`}
       >
-        <div
-          id="application-sidebar"
-          className={`fixed top-0 start-0 bottom-0 lg:z-0 z-20 w-64 bg-ec-blue-900 text-white border-e border-gray-200 pt-7 pb-10 overflow-y-auto end-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 lg:block`}
-        >
-          <div className="px-6 h-full">{children}</div>
-        </div>
-      </CSSTransition>
+        <div className="px-6 h-full">{children}</div>
+      </div>
     </>
   );
 };
