@@ -9,7 +9,7 @@ export const handleApiRequest = (
   onError: (error: string) => void,
   onComplete: () => void
 ) => {
-  fetchEventSource(process.env.CHAT_API_URL || "/api/chat", {
+  fetchEventSource("/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
