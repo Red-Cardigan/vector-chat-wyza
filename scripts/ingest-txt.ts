@@ -1,105 +1,78 @@
-import fs from 'fs';
-import path from 'path';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { OpenAIEmbeddings } from 'langchain/embeddings/openai';
-import { PineconeStore } from 'langchain/vectorstores/pinecone';
-import { pinecone } from '@/utils/pinecone-client';
-import { TextLoader } from 'langchain/document_loaders/fs/text';
-import { DirectoryLoader } from 'langchain/document_loaders/fs/directory';
-import { PINECONE_INDEX_NAME, PINECONE_NAME_SPACE } from '@/config/pinecone';
+// import fs from 'fs-extra';
+// import path from 'path';
+// import dotenv from 'dotenv';
+// import { PineconeClient } from '@pinecone-database/pinecone';
+// import { PineconeStore } from '@langchain/pinecone';
+// import { OpenAIEmbeddings } from '@langchain/openai';
 
-const filePath = 'scripts/data/scraped_txt';
+// // Load environment variables
+// dotenv.config();
 
-// Simplified Document interface based on LangChain documentation
-interface SimpleDocument {
-  pageContent: string;
-  metadata: Record<string, any>;
-}
+// interface DocumentMetadata {
+//   url: string;
+//   title: string;
+//   filename: string;
+// }
 
-// Utility function to load JSON files
-const loadMetadata = (filePath: string): Record<string, any> => {
-  try {
-    const rawData = fs.readFileSync(filePath);
-    return JSON.parse(rawData.toString());
-  } catch (error) {
-    console.error(`Failed to load metadata from ${filePath}`, error);
-    return {};
-  }
-};
+// // Custom text splitter function
+// function splitText(text: string, chunkSize: number, chunkOverlap: number): string[] {
+//   const chunks = [];
+//   for (let start = 0; start < text.length; start += chunkSize - chunkOverlap) {
+//     const end = Math.min(start + chunkSize, text.length);
+//     chunks.push(text.substring(start, end));
+//   }
+//   return chunks;
+// }
 
-const metadata1 = loadMetadata('scripts/metadata.json');
+// const run = async () => {
+//   try {
+//     // Initialize Pinecone client
+//     const pinecone = new PineconeClient();
+//     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX!);
 
-export const run = async () => {
-  try {
-    const directoryLoader = new DirectoryLoader(filePath, {
-      '.txt': (path) => new TextLoader(path),
-    });
+//     // Load metadata from JSON
+//     const metadataPath = path.join(__dirname, 'metadata.json');
+//     const metadata: Record<string, DocumentMetadata> = await fs.readJson(metadataPath);
 
-    const rawDocs = await directoryLoader.load() as SimpleDocument[];
-    const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
+//     // Directory where the .txt files are located
+//     const directoryPath = path.join(__dirname, '../docs/scraped_txt');
 
-    let docs: SimpleDocument[] = [];
-    let homelessFilenames: string[] = []; // Step 1: Initialize the array
+//     // Read all text files from directory
+//     const files = await fs.readdir(directoryPath);
 
-    for (const doc of rawDocs) {
-      const baseFilename = path.basename(doc.metadata.source, '.txt');
-      const uniqueId = baseFilename.slice(-16);
+//     // Initialize embeddings and PineconeStore
+//     const embeddings = new OpenAIEmbeddings({
+//       modelName: "text-embedding-3-small", // Adjust model name as necessary
+//     });
 
-      let docUrl = '';
-      console.log(`Looking for URL with filename: ${baseFilename}`);
-      for (const [url, meta] of Object.entries({...metadata1 })) {
-        const metaUniqueId = meta.filename.slice(-20, -4);
-        if (metaUniqueId === uniqueId) {
-          docUrl = url;
-          console.log(`Match found: ${docUrl}`);
-          break;
-        }
-      }
+//     let documents: any[] = [];
 
-      if (!docUrl) {
-        console.warn(`No URL found for document: ${baseFilename}`);
-        homelessFilenames.push(baseFilename); // Step 2: Add to the array
-        continue;
-      }
+//     for (const file of files) {
+//       const filePath = path.join(directoryPath, file);
+//       const pageContent = await fs.readFile(filePath, 'utf8');
+//       const docMetadata = Object.values(metadata).find((meta) => meta.filename === file);
 
-      const chunks = await textSplitter.splitText(doc.pageContent);
-      for (const chunk of chunks) {
-        docs.push({
-          pageContent: chunk,
-          metadata: {
-            ...doc.metadata,
-            url: docUrl,
-          },
-        });
-      }
-    }
+//       // Split the document content into chunks
+//       const textChunks = splitText(pageContent, 1000, 200);
 
-    // Step 3: Write the array to homeless.txt
-    fs.writeFileSync('homeless.txt', homelessFilenames.join('\n'));
-    console.log('Homeless filenames written to homeless.txt');
+//       textChunks.forEach((chunk) => {
+//         documents.push({
+//           metadata: docMetadata ? { url: docMetadata.url, title: docMetadata.title } : {},
+//           pageContent: chunk,
+//         });
+//       });
+//     }
 
-    console.log('split docs', docs);
+//     // Ingest documents into Pinecone
+//     await PineconeStore.fromDocuments(documents, embeddings, {
+//       pineconeIndex,
+//       maxConcurrency: 5, // Adjust concurrency as necessary
+//     });
 
-    const embeddings = new OpenAIEmbeddings({
-      modelName: "text-embedding-3-small",
-    });
-    const index = pinecone.Index(PINECONE_INDEX_NAME);
+//     console.log('Ingestion complete');
+//   } catch (error) {
+//     console.error('Failed to ingest documents', error);
+//   }
+// };
 
-    await PineconeStore.fromDocuments(docs, embeddings, {
-      pineconeIndex: index,
-      namespace: PINECONE_NAME_SPACE,
-      textKey: 'text',
-    });
-  } catch (error) {
-    console.log('error', error);
-    throw new Error('Failed to ingest your data');
-  }
-};
-
-(async () => {
-  await run();
-  console.log('ingestion complete');
-})();
+// run();

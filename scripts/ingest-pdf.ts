@@ -1,110 +1,97 @@
-import fs from 'fs';
-import path from 'path';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { OpenAIEmbeddings } from 'langchain/embeddings/openai';
-import { PineconeStore } from 'langchain/vectorstores/pinecone';
-import { pinecone } from '@/utils/pinecone-client';
-import { PDFLoader } from 'langchain/document_loaders/fs/pdf';
-import { PINECONE_INDEX_NAME, PINECONE_NAME_SPACE } from '@/config/pinecone';
-import { DirectoryLoader } from 'langchain/document_loaders/fs/directory';
+// There seems to be an issue with the Pinecone client. 
+// There's a discrepancy between the expected type for the pineconeIndex parameter in PineconeStore.fromDocuments and the type returned by PineconeClient.Index()
+// Suggestion: Rewrite in python and run from a notebook, since the documentation seems to be better maintained there.
 
-const filePath = 'scripts/data/scraped_pdfs';
+// import fs from 'fs';
+// import path from 'path';
+// import { PineconeClient } from '@pinecone-database/pinecone';
+// import { OpenAIEmbeddings } from 'langchain/embeddings/openai';
+// import { PineconeStore } from "@langchain/pinecone";
+// import { PDFLoader } from 'langchain/document_loaders/fs/pdf'; // Import PDFLoader
+// import dotenv from 'dotenv';
 
-interface SimpleDocument {
-  pageContent: string;
-  metadata: Record<string, any>;
-}
+// dotenv.config();
 
-const loadMetadata = (filePath: string): Record<string, any> => {
-  try {
-    const rawData = fs.readFileSync(filePath);
-    return JSON.parse(rawData.toString());
-  } catch (error) {
-    console.error(`Failed to load metadata from ${filePath}`, error);
-    return {};
-  }
-};
+// const pdfPath = '../../docs/data/scraped_pdfs'; // Updated path for PDFs
 
-const metadata1 = loadMetadata('scripts/metadata.json');
+// interface SimpleDocument {
+//   pageContent: string;
+//   metadata: Record<string, any>;
+// }
 
-export const run = async () => {
-  try {
-    const directoryLoader = new DirectoryLoader(filePath, {
-      '.pdf': (path) => new PDFLoader(path),
-    });
+// const loadMetadata = (filePath: string): Record<string, any> => {
+//   try {
+//     const rawData = fs.readFileSync(filePath);
+//     return JSON.parse(rawData.toString());
+//   } catch (error) {
+//     console.error(`Failed to load metadata from ${filePath}`, error);
+//     return {};
+//   }
+// };
 
-    const rawDocs = await directoryLoader.load() as SimpleDocument[];
-    const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
+// const metadata1 = loadMetadata('scripts/metadata.json');
 
-    let docs: SimpleDocument[] = [];
-    let homelessFilenames: string[] = [];
-    let invalidPDFs: string[] = [];
+// export const run = async () => {
+//   try {
+//     const files = fs.readdirSync(pdfPath).filter(file => file.endsWith('.pdf'));
+//     let docs: SimpleDocument[] = [];
+//     let homelessFilenames: string[] = [];
 
-    for (const doc of rawDocs) {
-      const baseFilename = path.basename(doc.metadata.source, '.pdf');
-      const uniqueId = baseFilename.slice(-16);
+//     for (const file of files) {
+//       const loader = new PDFLoader(path.join(pdfPath, file), {
+//         splitPages: false, // Set to true if you want one document per page
+//       });
 
-      let docUrl = '';
-      console.log(`Looking for URL with filename: ${baseFilename}`);
-      for (const [url, meta] of Object.entries({ ...metadata1 })) {
-        const metaUniqueId = meta.filename.slice(-20, -4);
-        if (metaUniqueId === uniqueId) {
-          docUrl = url;
-          console.log(`Match found: ${docUrl}`);
-          break;
-        }
-      }
+//       const docPages = await loader.load();
+//       const baseFilename = path.basename(file, '.pdf');
+//       let docUrl = '';
 
-      if (!docUrl) {
-        console.warn(`No URL found for document: ${baseFilename}. Proceeding without URL.`);
-        // Optionally, assign a placeholder value to docUrl if needed, e.g., docUrl = 'no-url-found';
-      }
+//       console.log(`Looking for URL with filename: ${baseFilename}`);
+//       for (const [url, meta] of Object.entries({...metadata1 })) {
+//         if (meta.filename === baseFilename) {
+//           docUrl = url;
+//           console.log(`Match found: ${docUrl}`);
+//           break;
+//         }
+//       }
 
-      try {
-        const chunks = await textSplitter.splitDocuments([doc]);
-        for (const chunk of chunks) {
-          docs.push({
-            pageContent: chunk.pageContent,
-            metadata: {
-              url: docUrl, // Only include the URL in the metadata
-            },
-          });
-        }
-      } catch (error) {
-        console.error(`Error processing PDF: ${baseFilename}`, error);
-        invalidPDFs.push(baseFilename);
-        continue; // Ensure the loop continues with the next document
-      }
-    }
+//       if (!docUrl) {
+//         console.warn(`No URL found for document: ${baseFilename}`);
+//         homelessFilenames.push(baseFilename);
+//         continue;
+//       }
 
-    fs.writeFileSync('homeless.txt', homelessFilenames.join('\n'));
-    console.log('Homeless filenames written to homeless.txt');
+//       // Assuming each PDF is a single document, adjust as needed for splitPages
+//       docs.push({
+//         pageContent: docPages.map(page => page.pageContent).join('\n'), // Join pages if splitPages is true
+//         metadata: {
+//           source: file,
+//           url: docUrl,
+//         },
+//       });
+//     }
 
-    fs.writeFileSync('invalid_pdfs.txt', invalidPDFs.join('\n'));
-    console.log('Invalid PDF filenames written to invalid_pdfs.txt');
+//     fs.writeFileSync('homeless.txt', homelessFilenames.join('\n'));
+//     console.log('Homeless filenames written to homeless.txt');
 
-    console.log('Preparing to upsert documents with embeddings...');
-    const embeddings = new OpenAIEmbeddings({
-        modelName: "text-embedding-3-small",
-      });
-    const index = pinecone.Index(PINECONE_INDEX_NAME);
+//     const embeddings = new OpenAIEmbeddings({
+//       modelName: "text-embedding-3-small",
+//     });
 
-    await PineconeStore.fromDocuments(docs, embeddings, {
-      pineconeIndex: index,
-      namespace: PINECONE_NAME_SPACE,
-      textKey: 'text',
-    });
-    console.log('Upsert complete.');
-  } catch (error) {
-    console.error('An unexpected error occurred during the run', error);
-    throw new Error('Failed to complete the ingestion process');
-  }
-};
+//     const pinecone = new PineconeClient();
+//     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX!);
 
-(async () => {
-  await run();
-  console.log('Ingestion complete');
-})();
+//     await PineconeStore.fromDocuments(docs, embeddings, {
+//       pineconeIndex,
+//       maxConcurrency: 5,
+//     });
+//   } catch (error) {
+//     console.error('error', error);
+//     throw new Error('Failed to ingest PDF data');
+//   }
+// };
+
+// (async () => {
+//   await run();
+//   console.log('PDF ingestion complete');
+// })();
