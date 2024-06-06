@@ -1,6 +1,7 @@
 import LoadingModal from '@/components/Overlay';
 import { Sidebar } from './Sidebar';
 import { SidebarContent } from './SidebarContent';
+import { Analytics } from '@vercel/analytics/react';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   return (
     <main className="bg-slate-200 text-ec-blue-900 min-h-screen flex flex-col h-full w-full">
+      <Analytics />
       <Sidebar>
         <SidebarContent />
       </Sidebar>
